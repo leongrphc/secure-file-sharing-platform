@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique
+  passwordHash String?
+  demo Boolean @default(false)
+  createdAt DateTime @default(now())
+  files File[]
+  audit Audit[]
+}
+model File {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner User @relation(fields: [ownerId], references: [id])
+  objectKey String @unique
+  metadata String
+  wrappedKey String
+  size Int
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+  shares Share[]
+  tickets Ticket[]
+  @@index([ownerId, createdAt])
+}
+model Share {
+  id String @id @default(uuid()) @db.Uuid
+  fileId String @db.Uuid
+  file File @relation(fields: [fileId], references: [id])
+  tokenHash String @unique
+  passwordHash String?
+  expiresAt DateTime
+  maxDownloads Int
+  downloads Int @default(0)
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  tickets Ticket[]
+  @@index([fileId, createdAt])
+}
+model Ticket {
+  id String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique
+  fileId String @db.Uuid
+  file File @relation(fields: [fileId], references: [id])
+  shareId String? @db.Uuid
+  share Share? @relation(fields: [shareId], references: [id])
+  expiresAt DateTime
+  consumedAt DateTime?
+  @@index([expiresAt])
+}
+model Audit {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner User @relation(fields: [ownerId], references: [id])
+  action String
+  resourceId String?
+  createdAt DateTime @default(now())
+  @@index([ownerId, createdAt])
+}
