@@ -34,9 +34,18 @@ async function proxy(request: Request) {
       options.duplex = "half";
     }
     const response = await fetch(upstream, options);
+    // fetch decompresses upstream bodies. Do not describe the decoded stream as compressed.
+    const responseHeaders = new Headers(response.headers);
+    for (const name of [
+      "content-encoding",
+      "content-length",
+      "transfer-encoding",
+      "connection",
+    ])
+      responseHeaders.delete(name);
     return new Response(response.body, {
       status: response.status,
-      headers: response.headers,
+      headers: responseHeaders,
     });
   } catch {
     console.error(
