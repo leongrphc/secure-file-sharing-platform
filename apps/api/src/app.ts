@@ -14,6 +14,10 @@ import { storage } from "./storage.js";
 import { requireAuth } from "./security.js";
 import { z } from "zod";
 import multer from "multer";
+import { cleanup } from "./cleanup.js";
+import { config, MAX_BYTES } from "./config.js";
+import { timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 export const logger = pino({
   redact: {
     paths: [
@@ -44,7 +48,33 @@ app.use((req, res, next) => {
   );
   next();
 });
+app.use("/api", (req, res, next) => {
+  if (["/health", "/ready", "/cron/cleanup"].includes(req.path)) return next();
+  if (!config.API_GATEWAY_SECRET) return next();
+  const supplied = req.get("x-sfs-gateway-secret");
+  const expected = Buffer.from(config.API_GATEWAY_SECRET);
+  const actual = supplied ? Buffer.from(supplied) : Buffer.alloc(0);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
+    return res.status(403).json({ error: "Forbidden" });
+  const clientIp = req.get("x-sfs-client-ip");
+  if (!clientIp || clientIp.includes(",") || isIP(clientIp) === 0)
+    return res.status(400).json({ error: "Invalid client address" });
+  Object.defineProperty(req, "ip", { configurable: true, value: clientIp });
+  return next();
+});
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+app.all("/api/cron/cleanup", async (req, res, next) => {
+  const expected = config.CRON_SECRET;
+  const authorization = req.get("authorization");
+  if (!expected || authorization !== `Bearer ${expected}`)
+    return res.status(401).json({ error: "Unauthorized" });
+  try {
+    await cleanup();
+    return res.json({ status: "ok" });
+  } catch (error) {
+    return next(error);
+  }
+});
 app.get("/api/ready", async (_req, res) => {
   try {
     await Promise.all([db.$queryRaw`SELECT 1`, redis.ping(), storage.ready()]);
@@ -107,7 +137,9 @@ export const errorHandler: express.ErrorRequestHandler = (
   }
   if (error instanceof multer.MulterError) {
     status = 400;
-    message = "Upload rejected: one file, no extra fields, maximum 10 MiB";
+    message = `Upload rejected: one file, no extra fields, maximum ${
+      MAX_BYTES / (1024 * 1024)
+    } MiB`;
   }
   if (error?.type === "entity.too.large") {
     status = 413;

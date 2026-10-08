@@ -26,7 +26,10 @@ export function validateFile(file: {
   size: number;
 }) {
   if (file.size === 0 || file.size > MAX_BYTES)
-    throw new HttpError(400, "File must be between 1 byte and 10 MiB");
+    throw new HttpError(
+      400,
+      `File must be between 1 byte and ${MAX_BYTES / (1024 * 1024)} MiB`,
+    );
   const name = safeFilename(file.originalname);
   const ext = path.extname(name).toLowerCase();
   const bytes = file.buffer;

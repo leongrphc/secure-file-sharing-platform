@@ -12,6 +12,14 @@ async function proxy(request: Request) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  if (process.env.API_GATEWAY_SECRET) {
+    headers.set("x-sfs-gateway-secret", process.env.API_GATEWAY_SECRET);
+    // Vercel overwrites this header at its edge; never forward a client supplied IP.
+    const clientIp = process.env.VERCEL
+      ? request.headers.get("x-vercel-forwarded-for")
+      : null;
+    if (clientIp) headers.set("x-sfs-client-ip", clientIp);
+  }
   const hasBody = !["GET", "HEAD"].includes(request.method);
   try {
     const options: RequestInit & { duplex?: "half" } = {

@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
 import {
   S3Client,
   HeadBucketCommand,
@@ -19,6 +20,7 @@ import {
   GetBucketPolicyCommand,
   GetBucketAclCommand,
 } from "@aws-sdk/client-s3";
+import { del, get, head, list, put } from "@vercel/blob";
 import { config, MAX_BYTES } from "./config.js";
 export interface Storage {
   init(): Promise<void>;
@@ -157,5 +159,93 @@ export class S3Storage implements Storage {
     return all;
   }
 }
+export class VercelBlobStorage implements Storage {
+  async init() {
+    // Each cold start owns its probe so concurrent instances cannot delete each other's data.
+    const probe = randomUUID();
+    await put(probe, Buffer.from("sfs-private-probe"), {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: false,
+      contentType: "application/octet-stream",
+      token: config.BLOB_READ_WRITE_TOKEN,
+    });
+    try {
+      await head(probe, { token: config.BLOB_READ_WRITE_TOKEN });
+      const result = await get(probe, {
+        access: "private",
+        token: config.BLOB_READ_WRITE_TOKEN,
+        useCache: false,
+      });
+      if (!result || result.statusCode !== 200)
+        throw new Error("Blob probe failed");
+      await result.stream.cancel();
+    } finally {
+      await del(probe, { token: config.BLOB_READ_WRITE_TOKEN });
+    }
+  }
+  async ready() {
+    await list({ limit: 1, token: config.BLOB_READ_WRITE_TOKEN });
+  }
+  async put(key: string, data: Buffer) {
+    await put(validKey(key), data, {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: false,
+      contentType: "application/octet-stream",
+      token: config.BLOB_READ_WRITE_TOKEN,
+    });
+  }
+  async get(key: string) {
+    const result = await get(validKey(key), {
+      access: "private",
+      token: config.BLOB_READ_WRITE_TOKEN,
+      useCache: false,
+    });
+    if (!result || result.statusCode !== 200)
+      throw new Error("Object not found");
+    if (result.blob.size > MAX_BYTES + 28)
+      throw new Error("Oversized encrypted object");
+    const reader = result.stream.getReader();
+    const chunks: Buffer[] = [];
+    let size = 0;
+    try {
+      for (;;) {
+        const part = await reader.read();
+        if (part.done) break;
+        size += part.value.byteLength;
+        if (size > MAX_BYTES + 28)
+          throw new Error("Oversized encrypted object");
+        chunks.push(Buffer.from(part.value));
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    return Buffer.concat(chunks);
+  }
+  async delete(key: string) {
+    await del(validKey(key), { token: config.BLOB_READ_WRITE_TOKEN });
+  }
+  async list() {
+    const all: { key: string; modified: Date }[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await list({
+        cursor,
+        limit: 1000,
+        token: config.BLOB_READ_WRITE_TOKEN,
+      });
+      for (const blob of page.blobs)
+        if (/^[a-f0-9-]{36}$/.test(blob.pathname))
+          all.push({ key: blob.pathname, modified: blob.uploadedAt });
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
+    return all;
+  }
+}
 export const storage: Storage =
-  config.STORAGE_DRIVER === "s3" ? new S3Storage() : new LocalStorage();
+  config.STORAGE_DRIVER === "s3"
+    ? new S3Storage()
+    : config.STORAGE_DRIVER === "vercel-blob"
+      ? new VercelBlobStorage()
+      : new LocalStorage();

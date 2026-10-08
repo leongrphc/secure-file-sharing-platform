@@ -1,5 +1,9 @@
 # Secure File Sharing Platform
 
+[Canlı demo / Live demo](https://secure-file-sharing-pink.vercel.app) · [Vercel deployment](docs/VERCEL.md)
+
+Vercel Hobby + Neon Free + Upstash Free + private Vercel Blob. Deployed file limit: 4 MiB.
+
 [🇹🇷 Türkçe](#türkçe) · [🇬🇧 English](#english)
 
 ---
@@ -146,7 +150,7 @@ Test kapsamı: authentication, ownership, upload validation, private storage, sh
 - Gerçek e-posta veya push notification entegrasyonu yoktur.
 - Local storage fallback production object storage yerine geçmez.
 - S3/R2 provider entegrasyonu credential olmadan canlı ortamda doğrulanmamıştır.
-- Production deployment ve bağımsız security audit bu sürümün kapsamı dışındadır.
+- Vercel üzerinde kişisel portföy demosu yayındadır; bağımsız security audit yapılmamıştır.
 
 [English bölümüne geç](#english) · [Başa dön](#secure-file-sharing-platform)
 
@@ -294,6 +298,6 @@ Coverage includes authentication, ownership, upload validation, private storage,
 - No real email or push notification integration is included.
 - The local storage fallback is not a replacement for production object storage.
 - Live S3/R2 provider integration is not verified without credentials.
-- Production deployment and an independent security audit are outside the current scope.
+- A personal portfolio demo is deployed on Vercel; an independent security audit has not been performed.
 
 [Back to top](#secure-file-sharing-platform) · [Türkçe bölümüne dön](#türkçe)

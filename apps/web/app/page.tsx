@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "./api";
+const maxFileBytes = Number(
+  process.env.NEXT_PUBLIC_MAX_FILE_BYTES || 10 * 1024 * 1024,
+);
+const maxFileMiB = maxFileBytes / (1024 * 1024);
 type User = { id: string; email: string; demo: boolean };
 type PrivateFile = {
   id: string;
@@ -108,6 +112,9 @@ export default function Dashboard() {
     const element = event.currentTarget;
     const form = new FormData(element);
     void action(async () => {
+      const file = form.get("file");
+      if (file instanceof File && file.size > maxFileBytes)
+        throw new Error(`Maximum file size: ${maxFileMiB} MiB`);
       await api("/files", { method: "POST", body: form });
       element.reset();
       setPage(1);
@@ -233,19 +240,20 @@ export default function Dashboard() {
             Try isolated demo
           </button>
           <p className="muted">
-            Demo files are removed after 24 hours. Use sample files only.
+            Demo access expires after 24 hours; expired files are cleaned up
+            daily. Use sample files only.
           </p>
         </div>
       ) : (
         <>
           <p className="muted">
             Files and filenames use server-side encryption. The server can
-            decrypt your files. Limit: 100 files, 10 MiB each.
+            decrypt your files. Limit: 100 files, {maxFileMiB} MiB each.
           </p>
           {user.demo && (
             <p className="notice">
               Isolated demo account. Your session lasts 8 hours; demo files are
-              removed after 24 hours.
+              inaccessible after 24 hours and cleaned up daily.
             </p>
           )}
           <h2>Upload a file</h2>
@@ -260,7 +268,7 @@ export default function Dashboard() {
               />
             </label>
             <button disabled={busy}>Upload</button>
-            <small>UTF-8 TXT, PDF, PNG or JPEG · up to 10 MiB</small>
+            <small>UTF-8 TXT, PDF, PNG or JPEG · up to {maxFileMiB} MiB</small>
           </form>
           <h2>Your files</h2>
           <form
