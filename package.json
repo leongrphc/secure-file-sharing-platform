@@ -1,11 +1,40 @@
 {
-  "name": "secure-file-sharing-platform", "private": true, "workspaces": ["apps/*"],
+  "name": "secure-file-sharing-platform",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "concurrently -k -n api,web 'npm run dev -w @sfs/api' 'npm run dev -w @sfs/web'",
-    "lint": "eslint .", "typecheck": "npm run typecheck --workspaces", "build": "npm run build --workspaces",
-    "test": "vitest run", "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:browser": "playwright test", "db:migrate": "npm run db:migrate -w @sfs/api",
-    "setup": "node scripts/setup.mjs"
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces",
+    "build": "npm run build --workspaces",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:browser": "playwright test",
+    "db:migrate": "node scripts/migrate.mjs",
+    "setup": "node scripts/setup.mjs",
+    "postinstall": "npm run db:generate -w @sfs/api",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,css,json}\" \"tests/**/*.ts\" \"*.{ts,mjs,json,yaml}\" \"scripts/*.mjs\" \"docs/*.md\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,css,json}\" \"tests/**/*.ts\" \"*.{ts,mjs,json,yaml}\" \"scripts/*.mjs\" \"docs/*.md\""
   },
-  "devDependencies": {"@eslint/js":"^9.39.0","eslint":"^9.39.0","typescript-eslint":"^8.46.0","typescript":"^5.9.3","concurrently":"^9.2.1","vitest":"^3.2.4","supertest":"^7.1.4","@types/supertest":"^6.0.3","@playwright/test":"^1.56.0","dotenv":"^17.2.3"}
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "^1.56.0",
+    "@types/supertest": "^6.0.3",
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.2.3",
+    "eslint": "^9.39.0",
+    "prettier": "^3.9.9",
+    "supertest": "^7.1.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0",
+    "effect": "^3.20.0",
+    "shell-quote": "^1.8.5"
+  },
+  "type": "module"
 }

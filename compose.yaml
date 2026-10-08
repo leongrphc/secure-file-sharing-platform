@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: sfs
       POSTGRES_PASSWORD: local_only_password
       POSTGRES_DB: sfs
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:55473:5432"]
     volumes: ["postgres-data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sfs"]
@@ -15,7 +15,7 @@ services:
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
-    ports: ["127.0.0.1:6379:6379"]
+    ports: ["127.0.0.1:56373:6379"]
     volumes: ["redis-data:/data"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -23,42 +23,63 @@ services:
       timeout: 3s
       retries: 15
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    profiles: ["minio"]
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: local_minio
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?Run npm run setup first}
-    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    ports: ["127.0.0.1:39073:9000", "127.0.0.1:39074:9001"]
     volumes: ["minio-data:/data"]
   api:
+    image: secure-file-sharing-platform:local
     build: .
-    command: ["sh", "-c", "npm run db:migrate && npm run start -w @sfs/api"]
+    command:
+      ["sh", "-c", "npm run db:migrate && exec node apps/api/dist/server.js"]
     env_file: .env
     environment:
       DATABASE_URL: postgresql://sfs:local_only_password@postgres:5432/sfs
       REDIS_URL: redis://redis:6379
-      STORAGE_DRIVER: s3
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      LOCAL_STORAGE_DIR: /app/.local-storage
       S3_ENDPOINT: http://minio:9000
-      COOKIE_SECURE: "false"
     depends_on:
-      postgres: {condition: service_healthy}
-      redis: {condition: service_healthy}
-      minio: {condition: service_started}
-    ports: ["127.0.0.1:4000:4000"]
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ["127.0.0.1:34073:34073"]
+    volumes: ["local-data:/app/.local-storage"]
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:34073/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 15
   web:
-    build: .
-    command: ["npm", "run", "start", "-w", "@sfs/web"]
+    image: secure-file-sharing-platform:local
+    pull_policy: never
+    command:
+      [
+        "node",
+        "node_modules/next/dist/bin/next",
+        "start",
+        "apps/web",
+        "--hostname",
+        "0.0.0.0",
+        "--port",
+        "33073",
+      ]
     environment:
-      API_INTERNAL_URL: http://api:4000
+      API_INTERNAL_URL: http://api:34073
     depends_on:
-      api: {condition: service_healthy}
-    ports: ["127.0.0.1:3000:3000"]
+      api: { condition: service_healthy }
+    ports: ["127.0.0.1:33073:33073"]
 volumes:
   postgres-data:
   redis-data:
   minio-data:
+  local-data:
